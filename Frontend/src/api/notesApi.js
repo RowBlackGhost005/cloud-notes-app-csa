@@ -5,9 +5,10 @@ const API_BASE = 'https://fzwbneiw08.execute-api.us-east-1.amazonaws.com';
 export async function createNote({ title, content, file }) {
     let fileUrl = null;
 
-    // Step 1: Upload file to S3 if present
+    // Upload file to S3 if present
     if (file instanceof File && file.size > 0) {
-        // Request a pre-signed URL from your backend
+
+        // Request pre-signed URL
         const presignRes = await fetch(`${API_BASE}/api/upload-url`, {
             method: 'POST',
             body: JSON.stringify({
@@ -20,7 +21,7 @@ export async function createNote({ title, content, file }) {
         if (!presignRes.ok) throw new Error('Failed to get upload URL');
             const { uploadUrl } = await presignRes.json();
 
-            // Upload the file directly to S3
+            // Use the presigned URL to upload the file directly to S3
             const uploadRes = await fetch(uploadUrl, {
                 method: 'PUT',
                 body: file,
@@ -33,7 +34,7 @@ export async function createNote({ title, content, file }) {
         fileUrl = uploadUrl.split('?')[0];
     }
 
-    // Step 2: Create the note with metadata and optional fileUrl
+    // Create the Note
     const noteRes = await fetch(`${API_BASE}/api/notes`, {
         method: 'POST',
         body: JSON.stringify({
