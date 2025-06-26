@@ -17,6 +17,7 @@ To achieve this we will need a few things:
     - Fetch All Notes.
     - Get a Specific Note.
     - Delete a Note.
+    - Provide a pre-signed upload URL
 - Setup IAM Roles to grant permissions to the lambdas.
 - Setup an API Gateway to forward calls to each lambda.
 - Setup a Front-end to interact with the API Gateway.
@@ -48,7 +49,7 @@ Once in the dashboard click on `Create Bucket`.
 
 Select a name, in this case `notes-app-files-csa`.
 
-Leave everyithing on defaults because we will be granting permissions on the next steps.
+Leave everything on defaults because we will be granting permissions on the next steps.
 
 Then click on `Create Bucket`
 ![S3 Setup](doc/images/s3-setup.png)
@@ -60,17 +61,18 @@ Here we will be making ONE lambda for each operation to keep it scalable and man
 
 So in your AWS Dashboard go to `Lambda` and then click on `Create Lambda`, name each lambda and select `Node.js` as the Runtime and the architecture as x86_64.
 
-We will need 4 Lambdas:
+We will need 5 Lambdas:
 - Create Note
 - Delete Note
 - Search By Id
 - Search All
+- Create Presigned URLs
 
 ![Lambda Creation](doc/images/lambda-creation.png)
 *Note: This is only ONE lambda creation to avoid repetition of images*
 
 ## Setup Create Note Lambda
-I called this lambda 'Notes-POST-Note', this will be in charge of creating an entry in the DynamoDB with the note data and it will also store the attached file in to the S3 bucket.
+I called this lambda 'Notes-POST-Note', this will be in charge of creating an entry in the DynamoDB with the note data.
 
 First let's see the definition of a note, a note will have these fields:
 
@@ -87,27 +89,15 @@ With this in mind lets create our lambda function.
 In our lambda function lets add the following code.
 
 ```JavaScript
-import {v4 as uuidv4} from 'uuid';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { v4 as uuidv4 } from 'uuid';
+import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 
 export const handler = async (event) => {
+    console.log("Raw body:", event.body);
+    const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
     const noteId = uuidv4();
     const createdAt = new Date().toISOString();
-
-    //Manages the file IF present
-    if(event.body.attachment){
-        const buffer = Buffer.from(event.body.attachment, 'base64');
-        const fileKey = `notes/${noteId}/${event.body.filename}`;
-
-        await S3Client.send(new PutObjectCommand({
-            Bucket: process.env.BUCKET_NAME,
-            Key: fileKey,
-            Body: buffer,
-            ContentType: event.body.mimetype
-        }));
-
-        fileUrl = `https://${process.env.NOTES_BUCKET_NAME}.s3.amazonaws.com/${fileKey}`;
-    }
+    let fileUrl = body.fileUrl || null;
 
     //Manages the DynamoDB communication
     const db = new DynamoDBClient({region: 'us-east-1'});
@@ -119,7 +109,7 @@ export const handler = async (event) => {
             Title: {S: event.body.title},
             Content: {S: event.body.content},
             CreatedAt: {S: createdAt},
-            ...(fileUrl && {FileUrl: {S: fileUrl}})
+            ...(fileUrl ? { FileUrl: { S: fileUrl } } : {})
         }
     }))
 
@@ -187,10 +177,6 @@ As you can see, the code above references `process.env.`, so the lambda function
 If you want to keep the variables you'll need to go into the `Configuration` tab of the lambda function, then `Enviroment Variables` and then click `Edit`.
 
 Here you will need two keys:
-```
-NOTES_BUCKET_NAME
-```
-
 ```
 NOTES_TABLE_NAME
 ```
@@ -411,6 +397,57 @@ NOTES_BUCKET_NAME
 #### Deploy the Function
 Now the function is setup, go to the `Code` section and click `Deploy` to deploy the code.
 
+## Setup Create Presign URL
+Now we need a lambda that allows for the creation of a pre-signed URL to upload files into the S3 bucket.
+
+This URL is going to be created using the metadata of the file the user is trying to upload from the frontend, so only that file can be uploaded.
+
+This will allow us to first submit the file to the S3 bucket so that we get an S3 URL that subsequenlty can be provided to the 'Create Note' lambda so the URL get stored in the Database.
+
+This is done to avoid working with `base64` data type in our lambda, if we were to let the user submit the file alongside the metadata, we then be needed to parse the multipart request to get the keys and also the file data, making it more complex and it would lead to a heavier lambda.
+
+So to create this lambda we take the same steps as before, I named this `Notes-S3-Upload-Presign`.
+
+### Create Presign URL Code
+For this function we need the following code:
+
+```JavaScript
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+//Be sure to change this region to your own
+const s3 = new S3Client({ region: "us-east-1" });
+
+export async function handler(event) {
+    const { fileName, fileType } = JSON.parse(event.body);
+
+    //States the file that its going to be uploaded
+    const command = new PutObjectCommand({
+      Bucket: process.env.NOTES_BUCKET_NAME,
+      Key: fileName,
+      ContentType: fileType,
+    });
+
+    //Creates the URL based on the command created above containing the metadata.
+    const url = await getSignedUrl(s3, command, { expiresIn: 300 });
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ uploadUrl: url }),
+    };
+}
+```
+
+As you can see, this code also relies on Env Variables, as said before, you can hardcode them or add them the same way as before 
+
+#### Setting Up Env Variables
+Inside your lambda function go to the `Configuration` tab, then `Enviroment Variables` and add the following keys:
+
+And set its `Value` to the name of the name of the S3 Bucket we created earlier.
+```
+NOTES_BUCKET_NAME
+```
+
 ## Setup API Gateway
 Now that all our lambdas are created, we need a way to comunicate with them to be able to retrieve its response, do to this we will be using `AWS API Gateway` to create differente Endpoints and expose them as a REST API that will trigger our lambdas functions.
 
@@ -449,6 +486,11 @@ GET /api/notes/{id}
 DELETE /api/notes/{id}
 ```
 
+*Create Presigned URLs*
+```http
+GET /api/s3/upload
+```
+
 Then click `Next`
 ![API Gateway Paths Setup](doc/images/api-gateway-paths.png)
 
@@ -467,7 +509,7 @@ Now the API gateway should be looking like this in the Dashboard
 
 Now that the API Gateway is ready to go we are one step closer to finish our Cloud Note App but before start testing we need one more thing: **Permissions**
 
-At this point we have an S3 bucket, a DynamoDB Table, 4 Lambdas to operate with them and an API Gateway for outside access.
+At this point we have an S3 bucket, a DynamoDB Table, 5 Lambdas to operate with them and an API Gateway for outside access.
 
 But AWS follows the `Principle of Least Privilege`, and even though we 'connected' our lambdas with S3 and Dynamo programatically, this doesn't mean they can communicate with them, we need to `grant them permissions` so our connection actually goes through.
 
@@ -484,7 +526,6 @@ So the next step is create a policies to attach the required permissions that ea
 ### Grant Acces to Create Note Role
 Lets create a policy for the Create Note, this policy will:
 - Grant access to write in DynamoDB.
-- Grant access to uploadt files to S3.
 
 Go to `IAM` dashboard and then `Policies`, then click on `Create Policy`
 
@@ -503,14 +544,6 @@ Here you will be changing each `resource` placeholders `<placeholder>` with your
                 "dynamodb:PutItem"
             ],
             "Resource": "arn:aws:dynamodb:<REGION>:<ACCOUNT-ID>:table/<TABLENAME>"
-        },
-        {
-            "Sid": "AllowPutFileToS3",
-            "Effect": "Allow",
-            "Action": [
-                "s3:PutObject"
-            ],
-            "Resource": "arn:aws:s3:::<BUCKET-NAME>/*"
         }
     ]
 }
@@ -521,8 +554,6 @@ Here you will be changing each `resource` placeholders `<placeholder>` with your
 *Note - AccountID: Is the DB Owner account ID, its available at the top right by clicking your Username, it will display but in the format of `xxx-xxxx-xxx` **remove all (-)**.*
 
 *Note - Table Name: Name of the DynamoDB Table.*
-
-*Note - Bucket-Name: Name of the S3 Bucket.*
 
 It looks something like this:
 
@@ -555,7 +586,7 @@ Then click `Add Permissions`
 Then the role policies should reflect the new policy attached
 ![Role Policies List](doc/images/create-note-policy-list.png)
 
-Now this Lambda has the proper permissions to access the DynamoDB and S3 to create entries and files.
+Now this Lambda has the proper permissions to access the DynamoDB to create entries.
 
 ### Grant Access to Get Note by ID Lambda
 Lets create a policy for Get Note by ID, this policy will:
@@ -700,11 +731,54 @@ Follow the same steps as before but this time make sure you add the new policy t
 
 Now this Lambda has the proper permissions to scan the DynamoDB table.
 
+### Grant Access to Create Presigned URL Lambda
+Lets create a policy for Create Presigned URL, this policy will:
+- Grant access to put objects into the S3 bucket.
+
+Now, go to `IAM` dashboard and then `Policies`, then click on `Create Policy`
+
+In the `Create Policy Editor` select `JSON` and add the following permission definition:
+
+Here you will be changing each `resource` placeholders `<placeholder>` with your actual data
+
+```JSON
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowCreatePreSignedURLs",
+            "Effect": "Allow",
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::<BUCKETNAME>/*"
+        }
+    ]
+}
+```
+
+Then click `Next`
+
+Create a policy name and review the attached permissions.
+
+Then click `Create Policy`
+![Create Presigned URL Policy Preview](doc/images/create-url-policy-review.png)
+
+#### Attach Policy to Lambda Role
+Now that the policy is set up we need to attach it to the Role of the Lambda function to make effect.
+
+To achieve this go in the same `IAM` go to `Roles` and search for the Create Notes Lambda, the automatic roles are called `<LambdaName>-########`, for this lambda is `Notes-S3-Upload-Presign-role-yvb4t632`.
+
+Click on it.
+
+Follow the same steps as before but this time make sure you add the new policy to the role.
+
+Now this Lambda has the proper permissions to upload items to the S3 bucket.
+
 ## Permissions Overview
 At this point everything is set up, we have:
 - A DynamoDB Table to store Notes Data.
 - A S3 Bucket to store notes attached files.
 - A group of Lambda functions to Create/Delete/Fetch/Fetch All notes.
+- A lambda for creating pre-signed URLs to upload files.
 - An API Gateway that creates a REST Endpoint to activate each Lambda.
 - *Cloud Watch for Logs* - If used Automatic Lambda Role Generation
 
@@ -734,6 +808,66 @@ Here we can see that in fact, there is a log.
 ![Cloud Watch Early Test log](doc/images/cloudwatch-earlytest.png)
 
 Now that we know for sure that 1 out of 4 endpoints work and with this 3 out of 4 services work we can start developing a small front end to interact with the backend.
+
+# Front-end Integration
+Now that everything is ready and setup properly we need to setup a few more details to prepare for the upcoming front-end integration, these steps are allowing CORS for both the API Gateway and the S3 Bucket so our frontend is able to hit the API Gateway and also have access to upload files to S3 when it gets the upload URL.
+
+## CORS for S3
+In AWS dashboard go to `S3` then click the notes app bucket.
+
+Once inside click con `Permissions` tab and scroll down to `Cross-origin resources sharing (CORS)` and click `Edit`.
+
+Inside this page we will be defining our CORS policy as a JSON array, so you will add this:
+
+```JSON
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["PUT"],
+    "AllowedOrigins": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]
+```
+This grants access to make PUT request directly to our S3 bucket for '3000' seconds (5 minutes).
+
+Note that right now the allowed origins is `*`, this is fine for now but when the front-end is fully developed and deployed we **need to set the frontend URL instead of `*`** to ensure only our frontend can PUT files in our S3.
+
+Then click on `Save Changes`
+![S3 Cors setup](doc/images/s3-cors.png)
+
+Now this will throw us an alert that public access is blocked, to fully open our S3 we need to diseable the public blocks.
+
+## Diseable Public Block Access
+In the same `Permissions` tab in the bucket scroll up till you find `Block Public Access` and click `Edit`
+
+Here uncheck the option `Block all public access` and make sure none of the 4 items below are checked.
+
+Then click `Save Changes` and confirm it in the popup.
+![Diseabling public access block](doc/images/s3-publicaccess.png)
+
+Now our S3 is ready to receive PUT calls.
+
+*Remember to update the cors policy once the front end is fully developed, at this stage anyone with the S3 url can upload anything*
+
+## CORS for API Gateway
+Now we need to allow CORS for our API gateway so our front-end is going to be able to reach it.
+
+To do this go to `API Gateway` in the AWS Dashboard
+
+Then go to `APIs` and then look for the API Gateway that we created before.
+
+Now on the left menu go to `CORS` under `Develop` and click on `Configure`
+
+On this screen go into the input for `Access-Control-Allow-Origin` and type `*` then click on `Add`
+
+Then click `Save`
+![API Gateway CORS](doc/images/api-gateway-cors.png)
+
+Note that this also provides anyone access to our API endpoints if they know our API Gateway URL, so you should be upading this cors policy with the URL of the frontend once developed.
+
+Now our backend is 100% ready for a seamingless integration with a frontend.
 
 # Setup a Front-End
 At this point our back-end is finished and based on the test its seems promising, so now we will develop a small front-end to interact with the full back-end.
