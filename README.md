@@ -366,9 +366,6 @@ export const handler = async (event) => {
     const noteId = event.pathParameters.id;
     const createdAt = event.queryStringParameters?.createdAt;
 
-    console.log(`NoteID: ${noteId}`);
-    console.log(`CreatedAt: ${createdAt}`);
-
     if (!noteId) {
         return {
             statusCode: 400,
@@ -394,8 +391,8 @@ export const handler = async (event) => {
         }
 
         // Delets the Note attachment from S3 IF exists.
-        if (Item.FileURL) {
-            const url = new URL(Item.FileURL);
+        if (Item.FileUrl) {
+            const url = new URL(Item.FileUrl);
             const key = decodeURIComponent(url.pathname.slice(1));
 
             await s3.send(new DeleteObjectCommand({
@@ -953,4 +950,34 @@ The front end can be accessed here: //TODO
 # Front-end tests
 Here we can see some screenshots of the front-end working seamingless with our backend.
 
-//TODO --
+#### Home Page
+![Notes App Home Page](doc/images/front-main-empty.png)
+
+#### Create a Note
+![Notes App Creation of Note](doc/images/front-create-note.png)
+
+![Notes App Creation of Note](doc/images/front-create-note-full.png)
+
+#### Main Page
+![Notes app Main Page](doc/images/front-main-fetch.png)
+
+#### Note Details
+![Note Details](doc/images/front-note-details.png)
+
+#### Clicking on Attachment
+![Note Attachment](doc/images/front-attachment.png)
+
+#### DynamoDB entry
+![Dynamo DB entry](doc/images/dynamo-entry.png)
+
+#### S3 Bucket file
+![S3 Bucket file list](doc/images/s3-file.png)
+
+#### Deletion of a Note
+![Delete a note](doc/images/front-delete.png)
+
+#### Home Screen Updated
+![Home Screen Post Delete](doc/images/front-main-after.png)
+
+#### Cloud Watch Logs
+![Cloud Watch Logs](doc/images//cloudwatch-logs.png)
