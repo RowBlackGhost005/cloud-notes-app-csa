@@ -1,0 +1,50 @@
+.note-form {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 1.5rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #fafafa;
+    font-family: sans-serif;
+}
+
+.note-form div {
+    margin-bottom: 1.25rem;
+}
+
+.note-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.note-form input[type="text"],
+.note-form input[type="file"],
+.note-form textarea {
+    width: 100%;
+    padding: 0.6rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.note-form button {
+    background-color: #007acc;
+    color: white;
+    padding: 0.65rem 1.2rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.note-form button:hover {
+    background-color: #005fa3;
+}
+
+.text-center {
+    text-align: center;
+}
