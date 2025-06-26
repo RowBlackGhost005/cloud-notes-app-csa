@@ -10,7 +10,7 @@ const CreateNote = () => {
     const handleCreateNote = async (formData) => {
         try {
             await createNote(formData);
-            navigate('/notes');
+            navigate('/');
         } catch (err) {
             console.error('Error creating note:', err);
             alert('Failed to create note. Please try again.');
