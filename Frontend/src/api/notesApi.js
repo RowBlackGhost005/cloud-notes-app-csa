@@ -3,25 +3,49 @@ import React from 'react';
 const API_BASE = 'https://fzwbneiw08.execute-api.us-east-1.amazonaws.com';
 
 export async function createNote({ title, content, file }) {
-    const formData = new FormData();
-    formData.append('title', title);
-    formData.append('content', content);
+    let fileUrl = null;
 
-    if (file) formData.append('file', file);
+    // Step 1: Upload file to S3 if present
+    if (file instanceof File && file.size > 0) {
+        // Request a pre-signed URL from your backend
+        const presignRes = await fetch(`${API_BASE}/api/upload-url`, {
+            method: 'POST',
+            body: JSON.stringify({
+                fileName: file.name,
+                fileType: file.type
+            }),
+            headers: { 'Content-Type': 'application/json' }
+        });
 
-    for (const [key, value] of formData.entries()) {
-        console.log(`${key}:`, value);
+        if (!presignRes.ok) throw new Error('Failed to get upload URL');
+            const { uploadUrl } = await presignRes.json();
+
+            // Upload the file directly to S3
+            const uploadRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: file,
+                headers: { 'Content-Type': file.type }
+            });
+
+        if (!uploadRes.ok) throw new Error('Failed to upload file to S3');
+
+        // Strip query params to get the clean file URL
+        fileUrl = uploadUrl.split('?')[0];
     }
 
-
-    const res = await fetch(`${API_BASE}/api/notes`, {
+    // Step 2: Create the note with metadata and optional fileUrl
+    const noteRes = await fetch(`${API_BASE}/api/notes`, {
         method: 'POST',
-        body: formData
+        body: JSON.stringify({
+            title,
+            content,
+            fileUrl
+        }),
+        headers: { 'Content-Type': 'application/json' }
     });
-    
 
-    if (!res.ok) throw new Error('Failed to create note');
-        return await res.json();
+    if (!noteRes.ok) throw new Error('Failed to create note');
+    return await noteRes.json();
 }
 
 export async function getAllNotes() {
