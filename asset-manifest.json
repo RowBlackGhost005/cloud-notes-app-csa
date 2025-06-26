@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/cloud-notes-app-csa/static/css/main.e3b0ca89.css",
+    "main.js": "/cloud-notes-app-csa/static/js/main.44f22c29.js",
+    "static/js/453.489a7c76.chunk.js": "/cloud-notes-app-csa/static/js/453.489a7c76.chunk.js",
+    "index.html": "/cloud-notes-app-csa/index.html",
+    "main.e3b0ca89.css.map": "/cloud-notes-app-csa/static/css/main.e3b0ca89.css.map",
+    "main.44f22c29.js.map": "/cloud-notes-app-csa/static/js/main.44f22c29.js.map",
+    "453.489a7c76.chunk.js.map": "/cloud-notes-app-csa/static/js/453.489a7c76.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.e3b0ca89.css",
+    "static/js/main.44f22c29.js"
+  ]
+}
