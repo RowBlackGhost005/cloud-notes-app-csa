@@ -8,8 +8,10 @@ export async function createNote({ title, content, file }) {
     // Upload file to S3 if present
     if (file instanceof File && file.size > 0) {
 
+        console.log(file);
+
         // Request pre-signed URL
-        const presignRes = await fetch(`${API_BASE}/api/upload-url`, {
+        const presignRes = await fetch(`${API_BASE}/api/s3/upload`, {
             method: 'POST',
             body: JSON.stringify({
                 fileName: file.name,
@@ -55,14 +57,14 @@ export async function getAllNotes() {
     return await res.json();
 }
 
-export async function getNoteById(id) {
-    const res = await fetch(`${API_BASE}/api/notes/${id}`);
+export async function getNoteById(id , createdAt) {
+    const res = await fetch(`${API_BASE}/api/notes/${id}?createdAt=${createdAt}`);
     if (!res.ok) throw new Error('Note not found');
     return await res.json();
 }
 
-export async function deleteNote(id) {
-    const res = await fetch(`${API_BASE}/api/notes/${id}`, {
+export async function deleteNote(id , createdAt) {
+    const res = await fetch(`${API_BASE}/api/notes/${id}?createdAt=${createdAt}`, {
         method: 'DELETE'
     });
 
