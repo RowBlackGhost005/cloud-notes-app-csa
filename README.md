@@ -93,7 +93,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 
 export const handler = async (event) => {
-    console.log("Raw body:", event.body);
     const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
     const noteId = uuidv4();
     const createdAt = new Date().toISOString();
@@ -105,9 +104,9 @@ export const handler = async (event) => {
     await db.send(new PutItemCommand({
         TableName: process.env.NOTES_TABLE_NAME,
         Item: {
-            NoteId: {S: noteId},
-            Title: {S: event.body.title},
-            Content: {S: event.body.content},
+            NoteID: {S: noteId},
+            Title: {S: body.title},
+            Content: {S: body.content},
             CreatedAt: {S: createdAt},
             ...(fileUrl ? { FileUrl: { S: fileUrl } } : {})
         }
@@ -117,8 +116,8 @@ export const handler = async (event) => {
         statusCode: 201,
         body: JSON.stringify({
             NoteID: noteId,
-            Title: event.body.title,
-            Content: event.body.content,
+            Title: body.title,
+            Content: body.content,
             CreatedAt: createdAt,
             FileURL: fileUrl || null
         })
