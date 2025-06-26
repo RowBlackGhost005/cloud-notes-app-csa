@@ -38,7 +38,7 @@ Then add a `Sort Key` this serves as the orginizer and works combined with the p
 
 If both are setup a Partition Key can be shared among two entries if their sort key is different, A partition key could be the UserID and the sort Key the date of creation, making it easy to retrieve all objects as a 'block' using the Partition key and the Sort Key to get some filters if needed.
 
-In this case because there will be no users the Partition Key is going to serve as an unique identifier and we will try to make sure it does not collide between notes, so I created `NotesID` as the Partition and `CreatedAt` as the Sort key.
+In this case because there will be no users the Partition Key is going to serve as an unique identifier and we will try to make sure it does not collide between notes, so I created `NotesID` as the Partition and `CreatedAt` as the Sort key, both as Strings.
 
 Then click on `Create Table`
 ![DynamoDB Table Setup](doc/images/dynamo-setup.png)
