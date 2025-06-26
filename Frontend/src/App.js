@@ -1,8 +1,17 @@
+import React from 'react';
+import { Routes, Route, Link } from 'react-router-dom';
+
+import './styles.css';
+
+import CreateNote from './pages/CreateNote'
 
 function App() {
   return (
-    <div>
-    </div>
+    <main>
+      <Routes>
+        <Route path="/" element={<CreateNote/>}/>
+      </Routes>
+    </main>
   );
 }
 
