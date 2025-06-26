@@ -2,6 +2,8 @@
 
 Small notes app that uses AWS Lambda and DynamoDB for serving and persisting notes created by users and has the ability to store attached files.
 
+Try it out: https://rowblackghost005.github.io/cloud-notes-app-csa/
+
 # Functionalities
 - Create notes and optionally attach a file.
 - Fetch all notes
@@ -945,7 +947,7 @@ The front-end can be found in this same repo under `/Frontend`.
 
 It was developed in React and pushed to GitHub Pages so it can be access it without the need to deploy it yourself.
 
-The front end can be accessed here: //TODO
+The front end can be accessed here: https://rowblackghost005.github.io/cloud-notes-app-csa/
 
 # Front-end tests
 Here we can see some screenshots of the front-end working seamingless with our backend.
@@ -984,3 +986,6 @@ Here we can see some screenshots of the front-end working seamingless with our b
 
 #### Cloud Watch Logs
 ![Cloud Watch Logs](doc/images//cloudwatch-logs.png)
+
+# Credits
+Developed by: Luis Marin.
