@@ -488,7 +488,7 @@ DELETE /api/notes/{id}
 
 *Create Presigned URLs*
 ```http
-GET /api/s3/upload
+POST /api/s3/upload
 ```
 
 Then click `Next`
