@@ -979,5 +979,8 @@ Here we can see some screenshots of the front-end working seamingless with our b
 #### Home Screen Updated
 ![Home Screen Post Delete](doc/images/front-main-after.png)
 
+#### Multiple Notes
+![Home Screen Full](doc/images/front-main-full.png)
+
 #### Cloud Watch Logs
 ![Cloud Watch Logs](doc/images//cloudwatch-logs.png)
