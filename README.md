@@ -54,6 +54,34 @@ Leave everything on defaults because we will be granting permissions on the next
 Then click on `Create Bucket`
 ![S3 Setup](doc/images/s3-setup.png)
 
+Now, since there is no Users, we will be granting access to all files in this bucket so anyone in the app can view the attachments when they query the notes.
+
+To do so we need to go to the `Permissions` tab in the bucket, then scroll to `Edit Bucket Policy`, then click `Edit`
+
+Here we will grant permissions to anyone to see an item if it has access to its URL, to do so paste this JSON definition:
+
+```JSON
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowPublicReadPublicFolder",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::<BUCKETNAME>/*"
+        }
+    ]
+}
+```
+
+Replace `<BUCKETNAME>` with the actual name of your bucket, the `/*` means that it grants access to all files under the root of the bucket, you can play with this to setup specific folders.
+
+Once added the permissions, click on `Save Changes`
+![S3 Bucket Policy](doc/images/s3-policy.png)
+
+Now anyone with an Object URL is going to have access to see the file.
+
 # Setup Lambda
 Now lets create the lambda functionallity to bring together both DynamoDB and S3 for storing the data of our Notes.
 
@@ -125,12 +153,12 @@ export const handler = async (event) => {
 };
 ```
 
-Now as you can see this requires the module `UUID` which is not bundled with the Node 22.x execution runtime of AWS, so we will be adding it as a Layer, this will be done as follow:
+Now as you can see this requires the module `UUID` which is not bundled with the Node 22.x execution runtime of AWS, so we will be adding it as a Layer. to do so we will need to do some extra steps.
 
 ### Creating layer for UUID module
 AWS requires a specific folder layout, so we will be following it by creating folders as follow
 
-Create a folder called `uuid-layer` then a folder inside called `nodejs`, then inside of it we are going to init a Node project to be able to install the module using npm.
+Create a folder called `uuid-layer` then a folder inside called `nodejs`. Inside of this folder we initialize a Node project to be able to install modules using npm.
 
 Bash:
 ```Bash
@@ -171,16 +199,16 @@ Then click on `Add`
 ![Adding Layer to Lambda](doc/images/uuid-layer-add.png)
 
 ### Adding Env Variables
-As you can see, the code above references `process.env.`, so the lambda function expects env variables to be set, you can skip this step by manually putting the Table and S3 names in the code.
+As you can see, the code above references `process.env.`, so the lambda function expects env variables to be set, you can skip this step by manually putting the Table name directly in the code.
 
 If you want to keep the variables you'll need to go into the `Configuration` tab of the lambda function, then `Enviroment Variables` and then click `Edit`.
 
-Here you will need two keys:
+Here you will need one key:
 ```
 NOTES_TABLE_NAME
 ```
 
-And set each value with the exact name of the S3 bucket and DynamoDB table we created earlier.
+And set the value at the exact name of the DynamoDB table we created earlier.
 
 
 Then click `Save`.
@@ -260,7 +288,10 @@ import { GetCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'us-east-1' }));
 
 export const handler = async (event) => {
-    const noteId = event.pathParameters?.id;
+    //Expects and gets both params from the URL
+    //This due to our setup of dynamoDB requiring both parts of the ID
+    const noteId = event.pathParameters.id;
+    const createdAt = event.queryStringParameters?.createdAt;
 
     if (!noteId) {
         return {
@@ -272,7 +303,10 @@ export const handler = async (event) => {
     try {
         const result = await db.send(new GetCommand({
             TableName: process.env.NOTES_TABLE_NAME,
-            Key: { NoteID: noteId }
+            Key: {
+                NoteID: noteId,
+                CreatedAt: createdAt
+              }              
         }));
 
         if (!result.Item) {
@@ -327,7 +361,13 @@ const db = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'us-east-1' 
 const s3 = new S3Client({ region: 'us-east-1' });
 
 export const handler = async (event) => {
-    const noteId = event.pathParameters?.id;
+    //Expects and gets both params from the URL
+    //This due to our setup of dynamoDB requiring both parts of the ID
+    const noteId = event.pathParameters.id;
+    const createdAt = event.queryStringParameters?.createdAt;
+
+    console.log(`NoteID: ${noteId}`);
+    console.log(`CreatedAt: ${createdAt}`);
 
     if (!noteId) {
         return {
@@ -340,7 +380,10 @@ export const handler = async (event) => {
         // Attempts to fetch the Note
         const { Item } = await db.send(new GetCommand({
             TableName: process.env.NOTES_TABLE_NAME,
-            Key: { NoteID: noteId }
+            Key: {
+                NoteID: noteId,
+                CreatedAt: createdAt
+              }    
         }));
 
         if (!Item) {
@@ -364,7 +407,10 @@ export const handler = async (event) => {
     // Deletes the entry from DynamoDB
     await db.send(new DeleteCommand({
         TableName: process.env.NOTES_TABLE_NAME,
-        Key: { NoteID: noteId }
+        Key: {
+            NoteID: noteId,
+            CreatedAt: createdAt
+          }  
     }));
 
     return {
@@ -456,7 +502,7 @@ Here we click on `Create API`
 
 Then select `HTTP API`
 
-In the next screen create a Name for the API Gateway and under `Integration` add 4 integrations of type `Lambda` and in the drop down menu select each lambda that we created before.
+In the next screen create a Name for the API Gateway and under `Integration` add 5 integrations of type `Lambda` and in the drop down menu select each lambda that we created before.
 
 Then click `Next`
 ![API Gateway Setup](doc/images/api-gateway-setup.png)
@@ -523,6 +569,7 @@ So the next step is create a policies to attach the required permissions that ea
 
 
 ### Grant Acces to Create Note Role
+---
 Lets create a policy for the Create Note, this policy will:
 - Grant access to write in DynamoDB.
 
@@ -588,6 +635,7 @@ Then the role policies should reflect the new policy attached
 Now this Lambda has the proper permissions to access the DynamoDB to create entries.
 
 ### Grant Access to Get Note by ID Lambda
+---
 Lets create a policy for Get Note by ID, this policy will:
 - Grant access to read the DynamoDB table.
 
@@ -632,6 +680,7 @@ Follow the same steps as before but this time make sure you add the new policy t
 Now this Lambda has the proper permissions to access the DynamoDB.
 
 ### Grant Access to Delete Note Lambda
+---
 Lets create a policy for Delete Note by ID, this policy will:
 - Grant access to delete from DynamoDB table.
 - Grant access to read from DynamoDB table.
@@ -687,6 +736,7 @@ Follow the same steps as before but this time make sure you add the new policy t
 Now this Lambda has the proper permissions to delete entries from DynamoDB and object from S3.
 
 ### Grant Access to Fetch ALL Notes Lambda
+---
 Lets create a policy for Fetching all notes, this policy will:
 - Grant access to scan a DynamoDB Table.
 
@@ -731,6 +781,7 @@ Follow the same steps as before but this time make sure you add the new policy t
 Now this Lambda has the proper permissions to scan the DynamoDB table.
 
 ### Grant Access to Create Presigned URL Lambda
+---
 Lets create a policy for Create Presigned URL, this policy will:
 - Grant access to put objects into the S3 bucket.
 
@@ -786,6 +837,7 @@ And everything is setup so the services can communicate with each other.
 We can make sure everything is setup correctly by calling our API Gateway and see if we get at least an empty response, so lets use Postman for generate an HTTP Request.
 
 ### Early Testing the Note App
+---
 Open Postman or use Curl to test the `<Gateway>/api/notes` endpoint with a `GET`.
 
 To get the API Gateway url go to `API Gateway > APIs >` then select the Notes API you created and look for the `Default Endpoint` or `Invoke URL` *(They are the same)* and pass it to Postman adding `/api/notes` at the end.
@@ -806,7 +858,7 @@ Here we can see that in fact, there is a log.
 
 ![Cloud Watch Early Test log](doc/images/cloudwatch-earlytest.png)
 
-Now that we know for sure that 1 out of 4 endpoints work and with this 3 out of 4 services work we can start developing a small front end to interact with the backend.
+Now that we know for sure that 1 out of 5 endpoints work and with this 3 out of 4 services work we can start developing a small front end to interact with the backend.
 
 # Front-end Integration
 Now that everything is ready and setup properly we need to setup a few more details to prepare for the upcoming front-end integration, these steps are allowing CORS for both the API Gateway and the S3 Bucket so our frontend is able to hit the API Gateway and also have access to upload files to S3 when it gets the upload URL.
@@ -838,7 +890,7 @@ Then click on `Save Changes`
 
 Now this will throw us an alert that public access is blocked, to fully open our S3 we need to diseable the public blocks.
 
-## Diseable Public Block Access
+## Disable Public Block Access
 In the same `Permissions` tab in the bucket scroll up till you find `Block Public Access` and click `Edit`
 
 Here uncheck the option `Block all public access` and make sure none of the 4 items below are checked.
@@ -876,13 +928,14 @@ content-type
 GET
 POST
 OPTIONS
+DELETE
 ```
 
 
 Then click `Save`
 ![API Gateway CORS](doc/images/api-gateway-cors.png)
 
-Note that this also provides anyone access to our API endpoints if they know our API Gateway URL, so you should be upading this cors policy with the URL of the frontend once developed.
+Note that this also provides access to anyone to our API endpoints if they know our API Gateway URL, so you should be upading this cors policy with the URL of the frontend as soon as is developed and deployed.
 
 Now our backend is 100% ready for a seamingless integration with a frontend.
 
