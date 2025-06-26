@@ -28,7 +28,7 @@ const NoteDetails = () => {
     fetchNote();
   }, [id, navigate]);
 
-  if (loading) return <p>Loading note...</p>;
+  if (loading) return <p className='mx-auto'>Loading note...</p>;
   if (!note) return null;
 
   const { Title, Content, CreatedAt, FileUrl } = note;
@@ -49,7 +49,7 @@ const NoteDetails = () => {
           <a href={FileUrl} target="_blank" rel="noopener noreferrer">{fileName}</a>
         </p>
       )}
-      <button onClick={() => navigate(-1)} style={{ marginTop: '1rem' }}>
+      <button className='action-button' onClick={() => navigate(-1)} style={{ marginTop: '1rem' }}>
         ← Back
       </button>
     </div>
