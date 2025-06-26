@@ -7,7 +7,13 @@ const db = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'us-east-1' 
 const s3 = new S3Client({ region: 'us-east-1' });
 
 export const handler = async (event) => {
-    const noteId = event.pathParameters?.id;
+    //Expects and gets both params from the URL
+    //This due to our setup of dynamoDB requiring both parts of the ID
+    const noteId = event.pathParameters.id;
+    const createdAt = event.queryStringParameters?.createdAt;
+
+    console.log(`NoteID: ${noteId}`);
+    console.log(`CreatedAt: ${createdAt}`);
 
     if (!noteId) {
         return {
@@ -20,7 +26,10 @@ export const handler = async (event) => {
         // Attempts to fetch the Note
         const { Item } = await db.send(new GetCommand({
             TableName: process.env.NOTES_TABLE_NAME,
-            Key: { NoteID: noteId }
+            Key: {
+                NoteID: noteId,
+                CreatedAt: createdAt
+              }    
         }));
 
         if (!Item) {
@@ -44,7 +53,10 @@ export const handler = async (event) => {
     // Deletes the entry from DynamoDB
     await db.send(new DeleteCommand({
         TableName: process.env.NOTES_TABLE_NAME,
-        Key: { NoteID: noteId }
+        Key: {
+            NoteID: noteId,
+            CreatedAt: createdAt
+          }  
     }));
 
     return {

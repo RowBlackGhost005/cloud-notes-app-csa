@@ -5,7 +5,10 @@ import { GetCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'us-east-1' }));
 
 export const handler = async (event) => {
-    const noteId = event.pathParameters?.id;
+    //Expects and gets both params from the URL
+    //This due to our setup of dynamoDB requiring both parts of the ID
+    const noteId = event.pathParameters.id;
+    const createdAt = event.queryStringParameters?.createdAt;
 
     if (!noteId) {
         return {
@@ -17,7 +20,10 @@ export const handler = async (event) => {
     try {
         const result = await db.send(new GetCommand({
             TableName: process.env.NOTES_TABLE_NAME,
-            Key: { NoteID: noteId }
+            Key: {
+                NoteID: noteId,
+                CreatedAt: createdAt
+              }              
         }));
 
         if (!result.Item) {
