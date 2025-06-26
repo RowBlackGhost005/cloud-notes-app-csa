@@ -860,7 +860,25 @@ Then go to `APIs` and then look for the API Gateway that we created before.
 
 Now on the left menu go to `CORS` under `Develop` and click on `Configure`
 
-On this screen go into the input for `Access-Control-Allow-Origin` and type `*` then click on `Add`
+And you will configure as follow:
+
+`Access-Control-Allow-Origin`
+```
+*
+```
+
+`Access-Control-Allow-Headers`
+```
+content-type
+```
+
+`Access-Control-Allow-Methods`
+```
+GET
+POST
+OPTIONS
+```
+
 
 Then click `Save`
 ![API Gateway CORS](doc/images/api-gateway-cors.png)
